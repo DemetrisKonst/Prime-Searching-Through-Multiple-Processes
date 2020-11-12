@@ -3,9 +3,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 
 #include "../include/main/initialization.hpp"
 #include "../include/utils/utils.hpp"
+#include "../include/main/io.hpp"
 
 int main(int argc, char const *argv[]) {
   int lower_bound;
@@ -20,8 +22,26 @@ int main(int argc, char const *argv[]) {
   int** children_boundaries = distribute_range(lower_bound, upper_bound, children);
 
   pid_t* pid_arr = new pid_t[children];
+  int* read_fd = new int[children];
+  int* write_fd = new int[children];
+  bool* child_active = new bool[children];
 
   for (int i = 0; i < children; i++) {
+    int fd_temp[2];
+
+    if (pipe(fd_temp) == -1) {
+      std::cerr << "Pipe Failed on child " << i+1 << '\n';
+      exit(EXIT_FAILURE);
+    }
+
+    if (fcntl(fd_temp[0], F_SETFL, O_NONBLOCK) < 0){
+      std::cerr << "fcntl failed" << '\n';
+      exit(EXIT_FAILURE);
+    }
+
+    read_fd[i] = fd_temp[0];
+    write_fd[i] = fd_temp[1];
+
     pid_t pid = fork();
 
     if (pid == -1) {
@@ -29,6 +49,7 @@ int main(int argc, char const *argv[]) {
       exit(EXIT_FAILURE);
     }else if (pid == 0) {
       // Child process has been created, we are currently inside its execution
+      close(read_fd[i]);
 
       char lower_bound_string[32];
       snprintf(lower_bound_string, sizeof(lower_bound_string), "%d", children_boundaries[i][0]);
@@ -42,17 +63,81 @@ int main(int argc, char const *argv[]) {
       char number_string[2];
       snprintf(number_string, sizeof(number_string), "%d", i);
 
-      char* moderator_argv_list[] = {"moderator", lower_bound_string, upper_bound_string, children_string, number_string, NULL};
+      char write_fd_string[8];
+      sprintf(write_fd_string, "%d", write_fd[i]);
+
+      char* moderator_argv_list[] = {"moderator", lower_bound_string, upper_bound_string, children_string, number_string, write_fd_string, NULL};
 
       execv("bin/moderator", moderator_argv_list);
     }else{
       // Child process has been created, we are currently inside the parent's execution
-      pid_arr[i] = pid;
+      close(write_fd[i]);
+      child_active[i]=true;
+      // pid_arr[i] = pid;
     }
   }
 
-  for (int i = 0; i < children; i++)
-    wait(NULL);
+
+  while (1) {
+    int children_closed = 0;
+
+    for (int i = 0; i < children; i++) {
+      if (child_active[i] == false) {
+        children_closed++;
+        continue;
+      }
+
+      while (1) {
+        int status;
+
+        char* read_buffer = read_from_moderator(read_fd[i], &status);
+
+        if (status == 0) {
+          std::cout << read_buffer << '\n';
+        }else if (status == 1){
+          break;
+        }else if (status == 2){
+          std::cerr << "Read Failure" << '\n';
+          exit(EXIT_FAILURE);
+        }else if (status == 3){
+          close(read_fd[i]);
+          child_active[i] = false;
+          break;
+        }
+        // bytes = read(read_fd[i], read_buffer, 10);
+        //
+        // if (bytes == -1) {
+        //   if (errno == EAGAIN){
+        //     break;
+        //   }else{
+        //     std::cerr << "Read " << i << '\n';
+        //     exit(EXIT_FAILURE);
+        //   }
+        // }else if (bytes == 0){
+        //   std::cout << "End for " << i << '\n';
+        //   close(read_fd[i]);
+        //   child_active[i] = false;
+        //   break;
+        // }else{
+        //   // std::cout << "MAIN: " << bytes << "-----------" << read_buffer;
+        // }
+      }
+    }
+
+    if (children_closed == children) {
+      break;
+    }
+  }
+
+  for (int i = 0; i < children; i++){
+    pid_t cpid;
+    int status;
+    cpid = wait(&status);
+    if (WIFEXITED(status))
+        printf("Exit status: %d\n", WEXITSTATUS(status));
+    else if (WIFSIGNALED(status))
+        psignal(WTERMSIG(status), "Exit signal");
+  }
 
   exit(EXIT_SUCCESS);
 }
