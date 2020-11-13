@@ -40,7 +40,7 @@ int main(int argc, char const *argv[]) {
     char write_string[20];
     sprintf(write_string, "N:%d-%1f,%1f", n, single_cpu_time, single_real_time);
 
-    std::cout << "WORKER--- " << write_string << '\n';
+    // std::cout << "WORKER--- " << write_string << '\n';
 
     write_to_moderator(write_fd, write_string);
   }
@@ -53,7 +53,7 @@ int main(int argc, char const *argv[]) {
   char final_write_string[255];
   sprintf(final_write_string, "T:%1f,%1f", total_cpu_time, total_real_time);
 
-  std::cout << "WORKER--- " << final_write_string << '\n';
+  // std::cout << "WORKER--- " << final_write_string << '\n';
 
   write_to_moderator(write_fd, final_write_string);
 

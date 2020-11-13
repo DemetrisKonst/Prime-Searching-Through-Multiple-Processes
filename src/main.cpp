@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <poll.h>
 
 #include "../include/main/initialization.hpp"
 #include "../include/utils/utils.hpp"
@@ -22,8 +23,8 @@ int main(int argc, char const *argv[]) {
   int** children_boundaries = distribute_range(lower_bound, upper_bound, children);
 
   pid_t* pid_arr = new pid_t[children];
-  int* read_fd = new int[children];
-  int* write_fd = new int[children];
+  int* moderator_read_fd = new int[children];
+  int* moderator_write_fd = new int[children];
   bool* child_active = new bool[children];
 
   for (int i = 0; i < children; i++) {
@@ -39,8 +40,8 @@ int main(int argc, char const *argv[]) {
       exit(EXIT_FAILURE);
     }
 
-    read_fd[i] = fd_temp[0];
-    write_fd[i] = fd_temp[1];
+    moderator_read_fd[i] = fd_temp[0];
+    moderator_write_fd[i] = fd_temp[1];
 
     pid_t pid = fork();
 
@@ -49,7 +50,7 @@ int main(int argc, char const *argv[]) {
       exit(EXIT_FAILURE);
     }else if (pid == 0) {
       // Child process has been created, we are currently inside its execution
-      close(read_fd[i]);
+      close(moderator_read_fd[i]);
 
       char lower_bound_string[32];
       snprintf(lower_bound_string, sizeof(lower_bound_string), "%d", children_boundaries[i][0]);
@@ -64,70 +65,88 @@ int main(int argc, char const *argv[]) {
       snprintf(number_string, sizeof(number_string), "%d", i);
 
       char write_fd_string[8];
-      sprintf(write_fd_string, "%d", write_fd[i]);
+      sprintf(write_fd_string, "%d", moderator_write_fd[i]);
 
       char* moderator_argv_list[] = {"moderator", lower_bound_string, upper_bound_string, children_string, number_string, write_fd_string, NULL};
 
       execv("bin/moderator", moderator_argv_list);
     }else{
       // Child process has been created, we are currently inside the parent's execution
-      close(write_fd[i]);
+      close(moderator_write_fd[i]);
       child_active[i]=true;
       // pid_arr[i] = pid;
     }
   }
 
+  struct pollfd* pfd_arr = new struct pollfd[children];
+  char* read_buffer;
+  int children_closed = 0;
 
-  while (1) {
-    int children_closed = 0;
+  for (int i = 0; i < children; i++) {
+    pfd_arr[i].fd = moderator_read_fd[i];
+    pfd_arr[i].events = POLLIN;
+  }
 
-    for (int i = 0; i < children; i++) {
-      if (child_active[i] == false) {
-        children_closed++;
-        continue;
-      }
+  while (children_closed < children) {
+    int poll_res;
 
-      while (1) {
-        int status;
+    poll_res = poll(pfd_arr, children, -1);
 
-        char* read_buffer = read_from_moderator(read_fd[i], &status);
 
-        if (status == 0) {
-          std::cout << read_buffer << '\n';
-        }else if (status == 1){
-          break;
-        }else if (status == 2){
-          std::cerr << "Read Failure" << '\n';
-          exit(EXIT_FAILURE);
-        }else if (status == 3){
-          close(read_fd[i]);
+    if (poll_res == 0) {
+      std::cout << "Poll timed out" << '\n';
+      exit(1);
+    }else{
+      int status;
+      for (int i = 0; i < children; i++) {
+        if (pfd_arr[i].revents == 0 || child_active[i] == false)
+          continue;
+
+        if (pfd_arr[i].revents & POLLIN){
+          read_buffer = read_from_moderator(moderator_read_fd[i]);
+          std::cout << "MAIN: " << read_buffer << '\n';
+        }else{
+          close(pfd_arr[i].fd);
+          children_closed++;
           child_active[i] = false;
-          break;
         }
-        // bytes = read(read_fd[i], read_buffer, 10);
-        //
-        // if (bytes == -1) {
-        //   if (errno == EAGAIN){
-        //     break;
-        //   }else{
-        //     std::cerr << "Read " << i << '\n';
-        //     exit(EXIT_FAILURE);
-        //   }
-        // }else if (bytes == 0){
-        //   std::cout << "End for " << i << '\n';
-        //   close(read_fd[i]);
-        //   child_active[i] = false;
-        //   break;
-        // }else{
-        //   // std::cout << "MAIN: " << bytes << "-----------" << read_buffer;
-        // }
       }
-    }
-
-    if (children_closed == children) {
-      break;
     }
   }
+
+  // while (1) {
+  //   int children_closed = 0;
+  //
+  //   for (int i = 0; i < children; i++) {
+  //     if (child_active[i] == false) {
+  //       children_closed++;
+  //       continue;
+  //     }
+  //
+  //     while (1) {
+  //       int status;
+  //
+  //       char* read_buffer = read_from_moderator(moderator_read_fd[i], &status);
+  //
+  //       if (status == 0) {
+  //         std::cout << read_buffer << '\n';
+  //       }else if (status == 1){
+  //         break;
+  //       }else if (status == 2){
+  //         std::cerr << "Read Failure" << '\n';
+  //         exit(EXIT_FAILURE);
+  //       }else if (status == 3){
+  //         close(moderator_read_fd[i]);
+  //         child_active[i] = false;
+  //         break;
+  //       }
+  //     }
+  //   }
+  //
+  //   if (children_closed == children) {
+  //     break;
+  //   }
+  // }
 
   for (int i = 0; i < children; i++){
     pid_t cpid;

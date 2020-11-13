@@ -3,6 +3,7 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <cstring>
+#include <poll.h>
 
 #include "../include/moderator/initialization.hpp"
 #include "../include/utils/utils.hpp"
@@ -85,54 +86,92 @@ int main(int argc, char const *argv[]) {
 
   PriorityQueue queue;
 
-  while (1) {
-    int children_closed = 0;
+  struct pollfd* pfd_arr = new struct pollfd[children];
+  char* read_buffer;
+  int children_closed = 0;
 
-    for (int i = 0; i < children; i++) {
-      if (child_active[i] == false) {
-        children_closed++;
-        continue;
-      }
+  for (int i = 0; i < children; i++) {
+    pfd_arr[i].fd = worker_read_fd[i];
+    pfd_arr[i].events = POLLIN;
+  }
 
-      while (1) {
-        int status;
+  while (children_closed < children) {
+    int poll_res;
 
-        char* read_buffer = read_from_worker(worker_read_fd[i], &status);
+    poll_res = poll(pfd_arr, children, -1);
 
-        if (status == 3){
-          close(worker_read_fd[i]);
-          child_active[i] = false;
-          children_closed++;
-          break;
-        }else if (status == 0) {
+
+    if (poll_res == 0) {
+      std::cout << "Poll timed out" << '\n';
+      exit(1);
+    }else{
+      int status;
+      for (int i = 0; i < children; i++) {
+        if (pfd_arr[i].revents == 0 || child_active[i] == false)
+          continue;
+
+        if (pfd_arr[i].revents & POLLIN){
+          read_buffer = read_from_worker(worker_read_fd[i]);
           // std::cout << "MODERATOR: " << read_buffer << '\n';
-
-          if (read_buffer[0] == 'T') {
-            close(worker_read_fd[i]);
-            child_active[i] = false;
-            children_closed++;
-            break;
-          }else if (read_buffer[0] == 'N'){
+          if (read_buffer[0] == 'N'){
             PrimeItem* tmp_item = new PrimeItem(read_buffer);
-            // tmp_item->print();
             queue.push(tmp_item);
-            // write_to_main(parent_write_fd, read_buffer);
           }
-
-        }else if (status == 1){
-          break;
-        }else if (status == 2){
-          std::cerr << "Read Failure" << '\n';
-          exit(EXIT_FAILURE);
+        }else{
+          close(pfd_arr[i].fd);
+          children_closed++;
+          child_active[i] = false;
         }
       }
     }
-
-    if (children_closed == children) {
-      std::cout << number << "----END" << '\n';
-      break;
-    }
   }
+
+
+  // while (1) {
+  //   int children_closed = 0;
+  //
+  //   for (int i = 0; i < children; i++) {
+  //     if (child_active[i] == false) {
+  //       children_closed++;
+  //       continue;
+  //     }
+  //
+  //     while (1) {
+  //       int status;
+  //
+  //       char* read_buffer = read_from_worker(worker_read_fd[i], &status);
+  //
+  //       if (status == 3){
+  //         close(worker_read_fd[i]);
+  //         child_active[i] = false;
+  //         children_closed++;
+  //         break;
+  //       }else if (status == 0) {
+  //         // std::cout << "MODERATOR: " << read_buffer << '\n';
+  //
+  //         if (read_buffer[0] == 'T') {
+  //           close(worker_read_fd[i]);
+  //           child_active[i] = false;
+  //           children_closed++;
+  //           break;
+  //         }else if (read_buffer[0] == 'N'){
+  //           PrimeItem* tmp_item = new PrimeItem(read_buffer);
+  //           queue.push(tmp_item);
+  //         }
+  //
+  //       }else if (status == 1){
+  //         break;
+  //       }else if (status == 2){
+  //         std::cerr << "Read Failure" << '\n';
+  //         exit(EXIT_FAILURE);
+  //       }
+  //     }
+  //   }
+  //
+  //   if (children_closed == children) {
+  //     break;
+  //   }
+  // }
 
   queue.print();
 
