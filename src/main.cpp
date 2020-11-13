@@ -114,40 +114,6 @@ int main(int argc, char const *argv[]) {
     }
   }
 
-  // while (1) {
-  //   int children_closed = 0;
-  //
-  //   for (int i = 0; i < children; i++) {
-  //     if (child_active[i] == false) {
-  //       children_closed++;
-  //       continue;
-  //     }
-  //
-  //     while (1) {
-  //       int status;
-  //
-  //       char* read_buffer = read_from_moderator(moderator_read_fd[i], &status);
-  //
-  //       if (status == 0) {
-  //         std::cout << read_buffer << '\n';
-  //       }else if (status == 1){
-  //         break;
-  //       }else if (status == 2){
-  //         std::cerr << "Read Failure" << '\n';
-  //         exit(EXIT_FAILURE);
-  //       }else if (status == 3){
-  //         close(moderator_read_fd[i]);
-  //         child_active[i] = false;
-  //         break;
-  //       }
-  //     }
-  //   }
-  //
-  //   if (children_closed == children) {
-  //     break;
-  //   }
-  // }
-
   for (int i = 0; i < children; i++){
     pid_t cpid;
     int status;

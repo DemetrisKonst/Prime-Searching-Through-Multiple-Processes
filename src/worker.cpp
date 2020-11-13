@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <sys/times.h>
 
+#include "../include/core/prime_item.hpp"
 #include "../include/worker/initialization.hpp"
 #include "../include/worker/io.hpp"
 #include "../include/algorithm.hpp"
@@ -33,29 +34,22 @@ int main(int argc, char const *argv[]) {
       continue;
 
     double t_single2 = (double) times(&tb_single2);
-
-    double single_cpu_time = (double) (tb_single2.tms_utime + tb_single2.tms_stime) - (tb_single1.tms_utime + tb_single1.tms_stime);
     double single_real_time = (double) (t_single2 - t_single1) / tics_per_sec;
 
-    char write_string[20];
-    sprintf(write_string, "N:%d-%1f,%1f", n, single_cpu_time, single_real_time);
-
-    // std::cout << "WORKER--- " << write_string << '\n';
-
-    write_to_moderator(write_fd, write_string);
+    PrimeItem item(n, single_real_time);
+    // std::cout << "WORKER: " << '\n';
+    // item.print();
+    write(write_fd, &item, sizeof(PrimeItem));
+    // write_to_moderator(write_fd, item);
   }
 
   double t_total2 = (double) times(&tb_total2);
-
-  double total_cpu_time = (double) (tb_total2.tms_utime + tb_total2.tms_stime) - (tb_total1.tms_utime + tb_total1.tms_stime);
   double total_real_time = (double) (t_total2 - t_total1) / tics_per_sec;
 
-  char final_write_string[255];
-  sprintf(final_write_string, "T:%1f,%1f", total_cpu_time, total_real_time);
-
-  // std::cout << "WORKER--- " << final_write_string << '\n';
-
-  write_to_moderator(write_fd, final_write_string);
+  PrimeItem time_item(0, number*1.0);
+  std::cout << "WRK: " << number << "->Time: " << number*1.0 << '\n';
+  write(write_fd, &time_item, sizeof(PrimeItem));
+  // write_to_moderator(write_fd, time_item);
 
   close(write_fd);
 
