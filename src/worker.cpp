@@ -37,19 +37,14 @@ int main(int argc, char const *argv[]) {
     double single_real_time = (double) (t_single2 - t_single1) / tics_per_sec;
 
     PrimeItem item(n, single_real_time);
-    // std::cout << "WORKER: " << '\n';
-    // item.print();
     write(write_fd, &item, sizeof(PrimeItem));
-    // write_to_moderator(write_fd, item);
   }
 
   double t_total2 = (double) times(&tb_total2);
   double total_real_time = (double) (t_total2 - t_total1) / tics_per_sec;
 
-  PrimeItem time_item(0, number*1.0);
-  std::cout << "WRK: " << number << "->Time: " << number*1.0 << '\n';
+  PrimeItem time_item(0, total_real_time);
   write(write_fd, &time_item, sizeof(PrimeItem));
-  // write_to_moderator(write_fd, time_item);
 
   close(write_fd);
 

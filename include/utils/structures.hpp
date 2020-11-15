@@ -1,17 +1,18 @@
 #pragma once
 
 #include <cstdio>
+#include <cmath>
 
 #include "../core/prime_item.hpp"
 
 typedef struct QueueNode* node_ptr;
 
 struct QueueNode{
-  PrimeItem* item;
+  PrimeItem item;
   node_ptr next;
   node_ptr prev;
 
-  QueueNode (PrimeItem* i) {
+  QueueNode (PrimeItem i) {
     item = i;
     next = NULL;
     prev = NULL;
@@ -64,16 +65,16 @@ public:
     }
   }
 
-  int compare (PrimeItem* x, PrimeItem* y) {
-    if (x->number < y->number)
+  int compare (PrimeItem x, PrimeItem y) {
+    if (x.number < y.number)
       return -1;
-    else if (x->number == y->number)
+    else if (x.number == y.number)
       return 0;
     else
       return 1;
   }
 
-  void push (PrimeItem* item) {
+  void push (PrimeItem item) {
     node_ptr node = new QueueNode(item);
     // item->print();
     // If this is the first item to be added, initialize the head & tail as the new item
@@ -111,11 +112,11 @@ public:
     items++;
   }
 
-  PrimeItem* pop () {
+  PrimeItem pop () {
     if (head == NULL)
-      return NULL;
+      return PrimeItem();
 
-    PrimeItem* item = head->item;
+    PrimeItem item = head->item;
     node_ptr temp = head;
 
     if (head->next)
@@ -126,27 +127,6 @@ public:
     items--;
     return item;
   }
-
-  // void set (int index, int key) {
-  //   node_ptr current = head;
-  //
-  //   for (int i = 0; i < index; i++) {
-  //     current = current->next;
-  //   }
-  //
-  //   current->key = key;
-  // }
-  //
-  // int get (int index) {
-  //   node_ptr current = head;
-  //
-  //   for (int i = 0; i < index; i++) {
-  //     current = current->next;
-  //   }
-  //
-  //   return current->data;
-  // }
-
 
   void remove (int index) {
     node_ptr current = head;
@@ -190,8 +170,28 @@ public:
     node_ptr current = head;
 
     while (current != NULL) {
-      current->item->print();
+      current->item.print();
       current = current->next;
     }
+  }
+
+
+  PrimeItem** split_in_batches (int batch_size) {
+    int batch_amount = ceil(items*1.0/batch_size);
+
+    PrimeItem** batch_arr = new PrimeItem*[batch_amount];
+
+    for (int i = 0; i < batch_amount; i++){
+      batch_arr[i] = new PrimeItem[batch_size];
+      for (int j = 0; j < batch_size; j++){
+        if (items == 0)
+          return batch_arr;
+
+        PrimeItem tmp = pop();
+        batch_arr[i][j] = tmp;
+      }
+    }
+
+    return batch_arr;
   }
 };

@@ -81,10 +81,6 @@ int main(int argc, char const *argv[]) {
     }
   }
 
-  char write_string[1000];
-  sprintf(write_string, "Child: %d\nLower Bound: %d\nUpper Bound: %d\nTotal: %d\n", number, lower_bound, upper_bound, upper_bound-lower_bound+1);
-  write_to_main(parent_write_fd, write_string);
-
   PriorityQueue prime_queue;
   double* time_arr = new double[children];
 
@@ -113,16 +109,13 @@ int main(int argc, char const *argv[]) {
           continue;
 
         if (pfd_arr[i].revents & POLLIN){
-          PrimeItem* tmp_item = read_from_worker(worker_read_fd[i]);
-          if (tmp_item->number != 0)
+          PrimeItem tmp_item = read_from_worker(worker_read_fd[i]);
+          if (tmp_item.number != 0)
             prime_queue.push(tmp_item);
           else{
-            time_arr[i] = tmp_item->time;
+            // std::cout << "MODERATOR: " << (children*number)+i << ": " << tmp_item.time << '\n';
+            time_arr[i] = tmp_item.time;
           }
-          // std::cout << "MODERATOR: " << read_buffer << '\n';
-          // if (read_buffer[0] == 'N'){
-          //   PrimeItem* tmp_item = new PrimeItem(read_buffer);
-          // }
         }else{
           close(pfd_arr[i].fd);
           children_closed++;
@@ -132,16 +125,27 @@ int main(int argc, char const *argv[]) {
     }
   }
 
-  std::cout << "-----------" << '\n';
-  prime_queue.print();
-  std::cout << "-----------" << '\n';
+  PrimeItem* worker_times = new PrimeItem[10];
+  for (int i = 0; i < children; i++){
+    worker_times[i].number = -(children*number + i + 1);
+    worker_times[i].time = time_arr[i];
+  }
 
-  for (int i = 0; i < children; i++)
-    std::cout << "MOD: " << (number*children)+i << "->Time: " << time_arr[i] << '\n';
+  write(parent_write_fd, worker_times, sizeof(PrimeItem)*10);
 
-  char end_string[50];
-  sprintf(end_string, "Bye bye from %d", number);
-  write_to_main(parent_write_fd, end_string);
+  int matrix_size = ceil(prime_queue.size()*1.0/10);
+  PrimeItem** batch_matrix = prime_queue.split_in_batches(10);
+
+  for (int i = 0; i < matrix_size; i++){
+    PrimeItem* batch_arr = batch_matrix[i];
+    write(parent_write_fd, batch_arr, sizeof(PrimeItem)*10);
+  }
+
+    // write_to_main(parent_write_fd, batch_matrix[i]);
+
+  // for (int i = 0; i < children; i++)
+  //   std::cout << "MOD: " << (number*children)+i << "->Time: " << time_arr[i] << '\n';
+
 
   close(parent_write_fd);
 

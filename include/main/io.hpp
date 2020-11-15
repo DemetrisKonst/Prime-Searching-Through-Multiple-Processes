@@ -1,12 +1,11 @@
-char* read_from_moderator (int read_fd) {
-  char size_buffer[1];
-  int size_bytes = read(read_fd, size_buffer, 1);
+#include "../core/prime_item.hpp"
 
-  int msg_size = (int) size_buffer[0];
+PrimeItem* read_from_moderator (int read_fd) {
+  int batch_size = 10;
 
-  char* read_buffer = new char[msg_size];
+  PrimeItem* item_arr = new PrimeItem[batch_size];
 
-  int msg_bytes = read(read_fd, read_buffer, msg_size);
+  int msg_bytes = read(read_fd, item_arr, sizeof(PrimeItem)*batch_size);
 
-  return read_buffer;
+  return item_arr;
 }
