@@ -1,36 +1,39 @@
 #pragma once
 
 #include <cmath>
+#include <cstdio>
 
-bool prime1 (int n) {
+bool prime1 (long int n) {
   if (n == 1) return false;
 
-  for (int i = 2; i < n; i++) {
+  for (long int i = 2; i < n; i++) {
     if (n%i == 0) return false;
   }
 
   return true;
 }
 
-bool prime2 (int n) {
+bool prime2 (long int n) {
   if (n == 1) return false;
 
-  int limit = (int)(sqrt((float)n));
+  int limit = (int)(sqrt((double)n));
 
-  for (int i = 2; i < limit; i++) {
+  for (long int i = 2; i <= limit; i++) {
     if (n%i == 0) return false;
   }
 
   return true;
 }
 
-bool prime3 (int n) {
+bool prime3 (long int n) {
   if (n == 1) return false;
   if (n == 2) return true;
 
-  int limit = (int)(sqrt((float)n));
+  if (n%2 == 0) return false;
 
-  for (int i = 3; i < limit; i+=2) {
+  int limit = (int)(sqrt((double)n));
+
+  for (long int i = 3; i <= limit; i+=2) {
     if (n%i == 0) return false;
   }
 

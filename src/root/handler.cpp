@@ -9,11 +9,18 @@
 
 #include "../../include/utils/utils.hpp"
 
+volatile sig_atomic_t signals_received = 0;
+
+void signal_handler (int sig) {
+  // std::cout << "Caught " << sig << '\n';
+  signals_received++;
+}
+
 Root :: Root (int argc, const char* argv[]) {
   if (PIPE_BATCH_SIZE < 3) {
     std::cout << "Batch size must be larger than 2" << '\n';
     exit = true;
-    exit_val = 1;
+    exit_val = USER_ERROR;
     return;
   }
 
@@ -33,7 +40,7 @@ Root :: Root (int argc, const char* argv[]) {
       if (lower_bound_check) {
         std::cout << "Lower Bound already declared, please check your arguments" << '\n';
         exit = true;
-        exit_val = 2;
+        exit_val = USER_ERROR;
         return;
       }else{
         lower_bound = atol(argv[i+1]);
@@ -41,7 +48,7 @@ Root :: Root (int argc, const char* argv[]) {
         if (lower_bound < 0) {
           std::cout << "Lower Bound must be a positive integer" << '\n';
           exit = true;
-          exit_val = 3;
+          exit_val = USER_ERROR;
           return;
         }
 
@@ -51,7 +58,7 @@ Root :: Root (int argc, const char* argv[]) {
       if (upper_bound_check) {
         std::cout << "Upper Bound already declared, please check your arguments" << '\n';
         exit = true;
-        exit_val = 2;
+        exit_val = USER_ERROR;
         return;
       }else{
         upper_bound = atol(argv[i+1]);
@@ -59,7 +66,7 @@ Root :: Root (int argc, const char* argv[]) {
         if (upper_bound < 0) {
           std::cout << "Upper Bound must be a positive integer" << '\n';
           exit = true;
-          exit_val = 3;
+          exit_val = USER_ERROR;
           return;
         }
 
@@ -69,7 +76,7 @@ Root :: Root (int argc, const char* argv[]) {
       if (children_check) {
         std::cout << "Number of children already declared, please check your arguments" << '\n';
         exit = true;
-        exit_val = 2;
+        exit_val = USER_ERROR;
         return;
       }else{
         children = atoi(argv[i+1]);
@@ -77,7 +84,7 @@ Root :: Root (int argc, const char* argv[]) {
         if (children < 0) {
           std::cout << "Number of children must be a positive integer" << '\n';
           exit = true;
-          exit_val = 3;
+          exit_val = USER_ERROR;
           return;
         }
 
@@ -86,7 +93,7 @@ Root :: Root (int argc, const char* argv[]) {
     }else{
       std::cout << "There is no argument named: " << argv[i] << '\n';
       exit = true;
-      exit_val = 4;
+      exit_val = USER_ERROR;
       return;
     }
   }
@@ -94,14 +101,14 @@ Root :: Root (int argc, const char* argv[]) {
   if (! (lower_bound_check && upper_bound_check && children_check)) {
     std::cout << "Arguments missing (check your arguments)" << '\n';
     exit = true;
-    exit_val = 5;
+    exit_val = USER_ERROR;
     return;
   }
 
   if (lower_bound >= upper_bound) {
     std::cout << "Upper bound must be larger than lower bound" << '\n';
     exit = true;
-    exit_val = 6;
+    exit_val = USER_ERROR;
     return;
   }
 
@@ -113,7 +120,19 @@ Root :: Root (int argc, const char* argv[]) {
   worker_time_arr = new double[children];
 
   exit = false;
-  exit_val = 0;
+  exit_val = EXIT_SUCCESS;
+
+  struct sigaction signal_action;
+
+  signal_action.sa_handler = signal_handler;
+  sigemptyset(&signal_action.sa_mask);
+  signal_action.sa_flags = SA_RESTART;
+
+  if (sigaction(SIGUSR1, &signal_action, NULL) == -1){
+    std::cout << "Error in sigaction()" << '\n';
+    exit = true;
+    exit_val = SYSTEM_ERROR;
+  }
 }
 
 void Root :: initialize_inner () {
@@ -125,14 +144,14 @@ void Root :: initialize_inner () {
     if (pipe(fd_temp) == -1) {
       std::cerr << "Pipe Failed on child " << i+1 << '\n';
       exit = true;
-      exit_val = 2;
+      exit_val = SYSTEM_ERROR;
       return;
     }
 
     if (fcntl(fd_temp[0], F_SETFL, O_NONBLOCK) < 0){
       std::cerr << "Fcntl Failed on child " << i+1 << '\n';
       exit = true;
-      exit_val = 2;
+      exit_val = SYSTEM_ERROR;
       return;
     }
 
@@ -144,25 +163,25 @@ void Root :: initialize_inner () {
     if (pid == -1) {
       std::cerr << "Fork Failed on child " << i+1 << '\n';
       exit = true;
-      exit_val = 3;
+      exit_val = SYSTEM_ERROR;
       return;
     }else if (pid == 0) {
       // Child process has been created, we are currently inside its execution
       close(inner_read_fd[i]);
 
-      char lower_bound_string[32];
+      char lower_bound_string[LONG_STR_SIZE + 1];
       sprintf(lower_bound_string, "%ld", children_boundaries[i][0]);
 
-      char upper_bound_string[32];
+      char upper_bound_string[LONG_STR_SIZE + 1];
       sprintf(upper_bound_string, "%ld", children_boundaries[i][1]);
 
-      char children_string[2];
+      char children_string[INT_STR_SIZE + 1];
       sprintf(children_string, "%d", children);
 
-      char child_number_string[2];
+      char child_number_string[INT_STR_SIZE + 1];
       sprintf(child_number_string, "%d", i);
 
-      char inner_write_fd_string[8];
+      char inner_write_fd_string[INT_STR_SIZE + 1];
       sprintf(inner_write_fd_string, "%d", inner_write_fd[i]);
 
       char* inner_argv_list[] = {"inner", lower_bound_string, upper_bound_string, children_string, child_number_string, inner_write_fd_string, NULL};
@@ -193,7 +212,7 @@ void Root :: get_primes () {
     if (poll_res == 0) {
       std::cout << "Poll timed out" << '\n';
       exit = true;
-      exit_val = 7;
+      exit_val = SYSTEM_ERROR;
       return;
     }else{
       for (int i = 0; i < children; i++) {
@@ -240,10 +259,16 @@ void Root :: build_output () {
   std::cout << "Min Time For Workers: " << time_min << '\n';
   std::cout << "Max Time For Workers: " << time_max << '\n';
 
+  std::cout << "Num of USR1 Received: " << signals_received << '\n';
+
   for (int i = 0; i < children*children; i++)
     std::cout << "Time for W" << i+1 << ": " << worker_time_arr[i] << '\n';
 }
 
 int Root :: finish () {
-  return EXIT_SUCCESS;
+  if (exit_val == USER_ERROR)
+    std::cout << "ROOT-User Error: Exitting" << '\n';
+  else if (exit_val == SYSTEM_ERROR)
+    std::cout << "ROOT-System Error: Exitting" << '\n';
+  return exit_val;
 }
