@@ -32,5 +32,6 @@ public:
 
   void build_output();
 
+  inline bool get_exit() { return exit; }
   int finish();
 };

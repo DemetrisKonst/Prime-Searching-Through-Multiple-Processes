@@ -1,6 +1,12 @@
 #pragma once
 
+#include <signal.h>
+
 #include "../../include/utils/structures.hpp"
+
+extern volatile sig_atomic_t signals_received;
+
+void signal_handler (int);
 
 class Root {
 private:
@@ -29,5 +35,6 @@ public:
 
   void build_output();
 
+  inline bool get_exit() { return exit; }
   int finish();
 };

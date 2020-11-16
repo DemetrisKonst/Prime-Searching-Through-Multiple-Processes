@@ -1,1 +1,7 @@
+#define LONG_STR_SIZE 19
+#define INT_STR_SIZE 10
+
+#define USER_ERROR 1
+#define SYSTEM_ERROR 2
+
 #define PIPE_BATCH_SIZE 1000

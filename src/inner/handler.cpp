@@ -10,9 +10,8 @@
 
 Inner :: Inner (int argc, const char* argv[]) {
   if (argc != 6) {
-    std::cout << "Wrong number of arguments (5 required)" << '\n';
     exit = true;
-    exit_val = 1;
+    exit_val = SYSTEM_ERROR;
     return;
   }
 
@@ -32,7 +31,7 @@ Inner :: Inner (int argc, const char* argv[]) {
   worker_time_arr = new double[children];
 
   exit = false;
-  exit_val = 0;
+  exit_val = EXIT_SUCCESS;
 }
 
 void Inner :: initialize_workers () {
@@ -42,16 +41,14 @@ void Inner :: initialize_workers () {
     int fd_temp[2];
 
     if (pipe(fd_temp) == -1) {
-      std::cerr << "Pipe Failed on child " << i+1 << '\n';
       exit = true;
-      exit_val = 2;
+      exit_val = SYSTEM_ERROR;
       return;
     }
 
     if (fcntl(fd_temp[0], F_SETFL, O_NONBLOCK) < 0){
-      std::cerr << "Fcntl Failed on child " << i+1 << '\n';
       exit = true;
-      exit_val = 2;
+      exit_val = SYSTEM_ERROR;
       return;
     }
 
@@ -61,32 +58,31 @@ void Inner :: initialize_workers () {
     pid_t pid = fork();
 
     if (pid == -1) {
-      std::cerr << "Fork Failed on child " << i+1 << '\n';
       exit = true;
-      exit_val = 3;
+      exit_val = SYSTEM_ERROR;
       return;
     }else if (pid == 0){
       close(worker_read_fd[i]);
 
-      char lower_bound_string[32];
+      char lower_bound_string[LONG_STR_SIZE + 1];
       sprintf(lower_bound_string, "%ld", children_boundaries[i][0]);
 
-      char upper_bound_string[32];
+      char upper_bound_string[LONG_STR_SIZE + 1];
       sprintf(upper_bound_string, "%ld", children_boundaries[i][1]);
 
-      char number_string[10];
+      char number_string[INT_STR_SIZE + 1];
       sprintf(number_string, "%d", inner_number);
 
-      char children_string[10];
+      char children_string[INT_STR_SIZE + 1];
       sprintf(children_string, "%d", children);
 
-      char child_number_string[10];
+      char child_number_string[INT_STR_SIZE + 1];
       sprintf(child_number_string, "%d", i);
 
-      char worker_write_fd_string[10];
+      char worker_write_fd_string[INT_STR_SIZE + 1];
       sprintf(worker_write_fd_string, "%d", worker_write_fd[i]);
 
-      char root_pid_string[10];
+      char root_pid_string[INT_STR_SIZE + 1];
       sprintf(root_pid_string, "%d", (int) root_pid);
 
       char* worker_arg_list[] = {"worker", lower_bound_string, upper_bound_string, number_string, children_string, child_number_string, worker_write_fd_string, root_pid_string, NULL};
@@ -113,9 +109,8 @@ void Inner :: get_primes () {
     poll_res = poll(pfd_arr, children, -1);
 
     if (poll_res == 0) {
-      std::cout << "Poll timed out" << '\n';
       exit = true;
-      exit_val = 3;
+      exit_val = SYSTEM_ERROR;
       return;
     }else{
       for (int i = 0; i < children; i++) {
@@ -161,5 +156,9 @@ void Inner :: build_output () {
 
 int Inner :: finish () {
   close(root_write_fd);
+  if (exit_val == USER_ERROR)
+    std::cout << "INNER-User Error: Exitting" << '\n';
+  else if (exit_val == SYSTEM_ERROR)
+    std::cout << "INNER-System Error: Exitting" << '\n';
   return EXIT_SUCCESS;
 }

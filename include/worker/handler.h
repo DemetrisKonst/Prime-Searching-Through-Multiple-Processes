@@ -31,5 +31,6 @@ public:
 
   void calculate_primes ();
 
+  inline bool get_exit() { return exit; }
   int finish ();
 };
