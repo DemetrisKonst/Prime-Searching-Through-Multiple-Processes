@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <signal.h>
 
 #include "../../include/root/handler.h"

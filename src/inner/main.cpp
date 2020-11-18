@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "../../include/inner/handler.h"
 
 int main(int argc, char const *argv[]) {
@@ -8,7 +9,7 @@ int main(int argc, char const *argv[]) {
   handler.initialize_workers();
   if (handler.get_exit())
     exit(handler.finish());
-    
+
   handler.get_primes();
 
   handler.build_output();

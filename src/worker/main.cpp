@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "../../include/worker/handler.h"
 
 int main(int argc, char const *argv[]) {

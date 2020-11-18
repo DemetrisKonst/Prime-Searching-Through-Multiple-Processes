@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <signal.h>
 
 #include "../../config/defn.h"
