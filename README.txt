@@ -115,3 +115,10 @@ At the first stages of development of this program, signal() was used to "catch"
 signals sent by WORKERs, this resulted in almost every execution at least one signal was missed.
 To somewhat correct this behavior, it was replaced by sigaction(). While using sigaction did
 improve the results, there is still a high chance a signal is not caught by the ROOT.
+
+
+----RESULTS----
+All prime numbers (and other related variables) are represented as long so the maximum value is
+2^64. However, the first prime finding algorithm (the naive algorithm) has a complexity of O(n^2)
+hence, values above 10 billion are almost uncalculatable. If this algorithm is substituted by
+one of the others, 200 values of around 1 quadrillion are calculated in less than 2 seconds.

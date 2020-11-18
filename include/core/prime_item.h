@@ -3,7 +3,7 @@
 #include <iostream>
 
 struct PrimeItem {
-  int number;
+  long int number;
   double time;
 
   PrimeItem () {
@@ -11,7 +11,7 @@ struct PrimeItem {
     time = 0.0;
   }
 
-  PrimeItem (int n, double t) : number(n), time(t) {}
+  PrimeItem (long int n, double t) : number(n), time(t) {}
 
   void operator= (const PrimeItem &item) {
     number = item.number;

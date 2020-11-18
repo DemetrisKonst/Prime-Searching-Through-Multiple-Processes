@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-O3 -g
+CFLAGS=-O3 -w
 
 ALL: ROOT INNER WORKER
 
