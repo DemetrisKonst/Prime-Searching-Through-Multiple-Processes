@@ -1,8 +1,9 @@
 CC=g++
-CFLAGS=-g
+CFLAGS=-O3 -g
 
 ALL: ROOT INNER WORKER
 
+# ROOT
 ROOT: root_main.o root_handler.o
 	$(CC) -o bin/myprime object/root_main.o object/root_handler.o $(CFLAGS)
 
@@ -12,6 +13,7 @@ root_main.o:
 root_handler.o:
 	$(CC) -c -o object/root_handler.o src/root/handler.cpp $(CFLAGS)
 
+# INNER
 INNER: inner_main.o inner_handler.o
 	$(CC) -o bin/inner object/inner_main.o object/inner_handler.o $(CFLAGS)
 
@@ -21,6 +23,7 @@ inner_main.o:
 inner_handler.o:
 	$(CC) -c -o object/inner_handler.o src/inner/handler.cpp $(CFLAGS)
 
+# WORKER
 WORKER: worker_main.o worker_handler.o
 	$(CC) -o bin/worker object/worker_main.o object/worker_handler.o $(CFLAGS)
 
@@ -29,6 +32,7 @@ worker_main.o:
 
 worker_handler.o:
 	$(CC) -c -o object/worker_handler.o src/worker/handler.cpp $(CFLAGS)
+
 
 clean:
 	rm bin/* object/*.o

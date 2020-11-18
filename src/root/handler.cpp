@@ -7,15 +7,17 @@
 
 #include "../../include/root/handler.h"
 
-#include "../../include/utils/utils.hpp"
+#include "../../include/utils/utils.h"
 
+// Global variable representing number of signals received by ROOT
 volatile sig_atomic_t signals_received = 0;
 
+// Signal handler for usage in sigaction()
 void signal_handler (int sig) {
-  // std::cout << "Caught " << sig << '\n';
   signals_received++;
 }
 
+// Constructor of ROOT handler, used for cmd-argument validation and attribute initialization
 Root :: Root (int argc, const char* argv[]) {
   if (PIPE_BATCH_SIZE < 3) {
     std::cout << "Batch size must be larger than 2" << '\n';
@@ -86,6 +88,11 @@ Root :: Root (int argc, const char* argv[]) {
           exit = true;
           exit_val = USER_ERROR;
           return;
+        }else if (children > 6) {
+          std::cout << "Number of children must not exceed 6" << '\n';
+          exit = true;
+          exit_val = USER_ERROR;
+          return;
         }
 
         children_check = true;
@@ -122,6 +129,10 @@ Root :: Root (int argc, const char* argv[]) {
   exit = false;
   exit_val = EXIT_SUCCESS;
 
+  /*
+  The following code is responsible for handling SIGUSR1 signals sent by WORKERs
+  It uses sigaction() instead of signal()
+  */
   struct sigaction signal_action;
 
   signal_action.sa_handler = signal_handler;
@@ -135,12 +146,27 @@ Root :: Root (int argc, const char* argv[]) {
   }
 }
 
+Root :: ~Root () {
+  delete[] inner_read_fd;
+  delete[] inner_write_fd;
+  delete[] child_active;
+  delete[] worker_time_arr;
+}
+
+// The following method is responsible to initialize 'w' INNER nodes and pipes
 void Root :: initialize_inner () {
+  /*
+  boundary[x][0] == lower bound
+  boundary[x][1] == upper bound
+  This function is inside "include/utils/utils.h"
+  */
   long int** children_boundaries = distribute_range(lower_bound, upper_bound, children);
 
+  // 'W' times...
   for (int i = 0; i < children; i++) {
     int fd_temp[2];
 
+    // Create a pipe
     if (pipe(fd_temp) == -1) {
       std::cerr << "Pipe Failed on child " << i+1 << '\n';
       exit = true;
@@ -148,6 +174,7 @@ void Root :: initialize_inner () {
       return;
     }
 
+    // Set it to NON-BLOCKING
     if (fcntl(fd_temp[0], F_SETFL, O_NONBLOCK) < 0){
       std::cerr << "Fcntl Failed on child " << i+1 << '\n';
       exit = true;
@@ -158,6 +185,7 @@ void Root :: initialize_inner () {
     inner_read_fd[i] = fd_temp[0];
     inner_write_fd[i] = fd_temp[1];
 
+    // Fork the process
     pid_t pid = fork();
 
     if (pid == -1) {
@@ -166,7 +194,7 @@ void Root :: initialize_inner () {
       exit_val = SYSTEM_ERROR;
       return;
     }else if (pid == 0) {
-      // Child process has been created, we are currently inside its execution
+      // Inside child: initialize cmd arguments and call bin/inner through execv
       close(inner_read_fd[i]);
 
       char lower_bound_string[LONG_STR_SIZE + 1];
@@ -185,17 +213,26 @@ void Root :: initialize_inner () {
       sprintf(inner_write_fd_string, "%d", inner_write_fd[i]);
 
       char* inner_argv_list[] = {"inner", lower_bound_string, upper_bound_string, children_string, child_number_string, inner_write_fd_string, NULL};
-      execv("bin/inner", inner_argv_list);
+      if (execv("bin/inner", inner_argv_list) < 0) {
+        std::cerr << "Fork Failed on child " << i+1 << '\n';
+        exit = true;
+        exit_val = SYSTEM_ERROR;
+        return;
+      }
     }else{
-      // Child process has been created, we are currently inside the parent's execution
+      // Inside parent: close write-end of pipe and set child as "active"
+      delete[] children_boundaries[i];
       close(inner_write_fd[i]);
       child_active[i]=true;
     }
   }
+
+  // delete[] children_boundaries;
 }
 
-
+// This is responsible for fetching the arrays of primes sent by the children
 void Root :: get_primes () {
+  // Initalize poll structure
   struct pollfd* pfd_arr = new struct pollfd[children];
   int children_closed = 0;
 
@@ -204,10 +241,11 @@ void Root :: get_primes () {
     pfd_arr[i].events = POLLIN;
   }
 
+  // Repeat until all children are "inactive" (i.e. have closed their write-ends of their pipe)
   while (children_closed < children) {
     int poll_res;
 
-    poll_res = poll(pfd_arr, children, -1);
+    poll_res = poll(pfd_arr, children, POLL_TIMEOUT);
 
     if (poll_res == 0) {
       std::cout << "Poll timed out" << '\n';
@@ -215,20 +253,32 @@ void Root :: get_primes () {
       exit_val = SYSTEM_ERROR;
       return;
     }else{
+      // For every child whose write-end is ready...
       for (int i = 0; i < children; i++) {
         if (pfd_arr[i].revents == 0 || child_active[i] == false)
           continue;
 
+        // If child has written in write-end...
         if (pfd_arr[i].revents & POLLIN){
+          // Read a "PrimeItem" array of size PIPE_BATCH_SIZE
           PrimeItem* item_arr = new PrimeItem[PIPE_BATCH_SIZE];
           read(inner_read_fd[i], item_arr, sizeof(PrimeItem)*PIPE_BATCH_SIZE);
 
+          // For every item in that array..
           for (int i = 0; i < PIPE_BATCH_SIZE; i++){
+            // If it has a positive "number", it indicates a prime number
             if (item_arr[i].number > 0)
               prime_queue.push(item_arr[i]);
+            /*
+            If the "number" is negative, then it is the total time of calculations of a WORKER.
+            Worker Number = -(item_arr[i].number) (-1 for 0 indexing)
+            Total time of worker = item_arr[i].time
+            */
             else if (item_arr[i].number < 0)
               worker_time_arr[-(item_arr[i].number+1)] = item_arr[i].time;
           }
+          delete[] item_arr;
+        // If child has closed write-end, set it as "inactive" and close read-end
         }else{
           close(pfd_arr[i].fd);
           children_closed++;
@@ -237,9 +287,11 @@ void Root :: get_primes () {
       }
     }
   }
+
+  delete[] pfd_arr;
 }
 
-
+// Simple method to print the desired output of the program
 void Root :: build_output () {
   std::cout << "Primes in [" << lower_bound << ", " << upper_bound << "] are: ";
   prime_queue.print();

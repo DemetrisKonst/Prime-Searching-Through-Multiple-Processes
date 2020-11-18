@@ -3,7 +3,11 @@
 #include <cstdio>
 #include <cmath>
 
-#include "../core/prime_item.hpp"
+#include "../core/prime_item.h"
+
+/*
+The following code is an implementation of a Priority Queue of PrimeItems.
+*/
 
 typedef struct QueueNode* node_ptr;
 

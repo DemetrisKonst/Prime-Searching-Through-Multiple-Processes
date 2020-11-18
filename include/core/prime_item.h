@@ -1,8 +1,6 @@
 #pragma once
 
 #include <iostream>
-#include <cstring>
-#include <cstdlib>
 
 struct PrimeItem {
   int number;
@@ -22,7 +20,5 @@ struct PrimeItem {
 
   void print () {
     std::cout << number << " " << time << " ";
-    // std::cout << "Number: " << number << '\n';
-    // std::cout << "Time: " << time << '\n';
   }
 };
